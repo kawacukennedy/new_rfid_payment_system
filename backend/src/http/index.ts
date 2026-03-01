@@ -1,10 +1,21 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
 import { topUpCard, processPayment, getProducts } from '../db';
 import { publishMessage } from '../mqtt';
 import { broadcastBalanceUpdate } from '../websocket';
 
 const router = Router();
+
+const limiter = rateLimit({
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
+    message: { error: 'Too many requests, please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+router.use(limiter);
 
 const TopUpSchema = z.object({
     uid: z.string().min(1),
