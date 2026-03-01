@@ -1,0 +1,1393 @@
+{
+    "project": {
+        "name": "RFID Wallet Transaction System",
+        "version": "1.0.0",
+        "description": "A production-grade RFID-based wallet system enabling top-up and payment operations with real-time dashboard updates.",
+        "vision": "To provide a secure, real-time, and scalable RFID payment solution for campus or small business environments, demonstrating architectural discipline with clear separation of MQTT, HTTP, and WebSocket layers.",
+        "team_id": "kawacukennedy"
+    },
+    "product_requirements": {
+        "functional": [
+            {
+                "id": "FR1",
+                "description": "Card Top-Up: Admin can increase a card's balance via the dashboard.",
+                "acceptance_criteria": [
+                    "Admin enters card UID and amount, clicks 'TOP UP'.",
+                    "System validates amount > 0.",
+                    "Backend publishes MQTT command to ESP8266.",
+                    "ESP8266 updates local balance and publishes new balance.",
+                    "Backend updates database atomically and broadcasts new balance via WebSocket.",
+                    "Dashboard displays success and new balance."
+                ],
+                "priority": "P0",
+                "tier": "Base"
+            },
+            {
+                "id": "FR2",
+                "description": "Card Payment: Cashier can deduct balance for a product purchase.",
+                "acceptance_criteria": [
+                    "Cashier selects product, enters quantity, and card UID.",
+                    "System calculates total and checks balance.",
+                    "If insufficient, returns error and no transaction recorded.",
+                    "If sufficient, publishes MQTT payment command to ESP8266.",
+                    "ESP8266 deducts balance, publishes new balance.",
+                    "Backend atomically updates database and broadcasts new balance.",
+                    "Dashboard shows approved/declined with reason."
+                ],
+                "priority": "P0",
+                "tier": "Base"
+            },
+            {
+                "id": "FR3",
+                "description": "Real-time Balance Updates: Dashboard reflects balance changes instantly via WebSocket.",
+                "acceptance_criteria": [
+                    "WebSocket connection established on dashboard load.",
+                    "Any balance update triggers a broadcast to all connected clients.",
+                    "Dashboard UI updates without refresh."
+                ],
+                "priority": "P0",
+                "tier": "Base"
+            },
+            {
+                "id": "FR4",
+                "description": "MQTT Topic Isolation: All communication uses team-specific topics.",
+                "acceptance_criteria": [
+                    "ESP8266 publishes to 'rfid/kawacukennedy/card/status' and 'rfid/kawacukennedy/card/balance'.",
+                    "Backend subscribes to those topics and publishes to 'rfid/kawacukennedy/card/topup' and 'rfid/kawacukennedy/card/pay'.",
+                    "No wildcard subscriptions or cross-team topics."
+                ],
+                "priority": "P0",
+                "tier": "Base"
+            },
+            {
+                "id": "FR5",
+                "description": "Safe Wallet Update: Balance change and transaction record are atomic.",
+                "acceptance_criteria": [
+                    "Database uses BEGIN IMMEDIATE and COMMIT for updates.",
+                    "If any step fails, entire transaction is rolled back.",
+                    "No partial updates or double-spending possible."
+                ],
+                "priority": "P0",
+                "tier": "Base"
+            },
+            {
+                "id": "FR6",
+                "description": "HTTP API Endpoints: Backend exposes /topup and /pay.",
+                "acceptance_criteria": [
+                    "POST /topup accepts {uid, amount} and returns 202.",
+                    "POST /pay accepts {uid, productId, quantity} and returns 202 or 402.",
+                    "GET /products returns list of available products."
+                ],
+                "priority": "P0",
+                "tier": "Base"
+            },
+            {
+                "id": "FR7",
+                "description": "Transaction Ledger: All top-ups and payments are stored in SQLite.",
+                "acceptance_criteria": [
+                    "Each transaction includes uid, type, amount, balance_after, timestamp.",
+                    "Payment records include product_id and quantity.",
+                    "Ledger is immutable and queryable."
+                ],
+                "priority": "P0",
+                "tier": "Base"
+            },
+            {
+                "id": "FR8",
+                "description": "ESP8266 Edge Controller: Reads RFID and communicates via MQTT only.",
+                "acceptance_criteria": [
+                    "ESP8266 publishes card UID and current balance on card tap.",
+                    "Subscribes to top-up and payment commands.",
+                    "Updates local balance in EEPROM and publishes new balance after command.",
+                    "No HTTP or WebSocket usage."
+                ],
+                "priority": "P0",
+                "tier": "Base"
+            },
+            {
+                "id": "FR9",
+                "description": "Dashboard Separation: Admin and Cashier interfaces are clearly distinct.",
+                "acceptance_criteria": [
+                    "Two tabs or separate pages for Top-Up and Payment.",
+                    "Each interface shows relevant fields and buttons.",
+                    "Admin cannot access payment functions and vice versa."
+                ],
+                "priority": "P1",
+                "tier": "Base"
+            },
+            {
+                "id": "FR10",
+                "description": "Error Handling: User-friendly error messages on the dashboard.",
+                "acceptance_criteria": [
+                    "Insufficient balance shows 'Declined: Insufficient funds'.",
+                    "Invalid card shows 'Card not found'.",
+                    "Network errors show 'Connection issue, retrying...'."
+                ],
+                "priority": "P1",
+                "tier": "Base"
+            }
+        ],
+        "non_functional": [
+            {
+                "id": "NFR1",
+                "description": "Performance: HTTP responses under 200ms, WebSocket updates under 500ms.",
+                "acceptance_criteria": [
+                    "Load testing with 100 concurrent requests shows <200ms latency.",
+                    "End-to-end payment cycle <1s."
+                ],
+                "priority": "P1"
+            },
+            {
+                "id": "NFR2",
+                "description": "Reliability: MQTT connection auto-reconnects on failure.",
+                "acceptance_criteria": [
+                    "Backend and ESP8266 retry connection with exponential backoff.",
+                    "No message loss during brief disconnections (QoS 1)."
+                ],
+                "priority": "P0"
+            },
+            {
+                "id": "NFR3",
+                "description": "Security: All HTTP traffic over HTTPS, MQTT over TLS.",
+                "acceptance_criteria": [
+                    "API endpoints use TLS 1.2+.",
+                    "MQTT broker connection uses TLS.",
+                    "Input validation on all endpoints."
+                ],
+                "priority": "P0"
+            },
+            {
+                "id": "NFR4",
+                "description": "Usability: Dashboard follows iOS 26 design guidelines.",
+                "acceptance_criteria": [
+                    "Typography uses SF Pro, spacing consistent with 4px base.",
+                    "Colors match system palette, contrast ratios met.",
+                    "Motion and haptics (where applicable) follow spec."
+                ],
+                "priority": "P1"
+            },
+            {
+                "id": "NFR5",
+                "description": "Maintainability: Codebase well-structured with TypeScript and documented.",
+                "acceptance_criteria": [
+                    "ESLint and Prettier configured.",
+                    "README with setup and architecture.",
+                    "Unit test coverage >80%."
+                ],
+                "priority": "P2"
+            }
+        ]
+    },
+    "user_stories": [
+        {
+            "persona": "Admin",
+            "scenario": "A student lost their card and got a new one.",
+            "need": "I need to top up the new card with the remaining balance from the old card.",
+            "so_that": "the student can continue using the system.",
+            "acceptance_tests": [
+                "Admin enters new card UID and amount.",
+                "System confirms top-up and shows new balance."
+            ]
+        },
+        {
+            "persona": "Cashier",
+            "scenario": "A customer wants to buy a coffee.",
+            "need": "I need to deduct the correct amount from the customer's card.",
+            "so_that": "the transaction is completed and balance updated.",
+            "acceptance_tests": [
+                "Cashier selects product, quantity, taps card.",
+                "System shows approved and new balance."
+            ]
+        },
+        {
+            "persona": "Admin",
+            "scenario": "A new employee needs to be trained on the system.",
+            "need": "I need a clear interface that guides the top-up process.",
+            "so_that": "training time is minimal.",
+            "acceptance_tests": [
+                "Interface clearly labels fields and buttons.",
+                "Error messages are descriptive."
+            ]
+        },
+        {
+            "persona": "Cashier",
+            "scenario": "A customer tries to pay with insufficient balance.",
+            "need": "The system should reject the payment and explain why.",
+            "so_that": "I can inform the customer.",
+            "acceptance_tests": [
+                "Payment attempt with low balance shows 'Declined: Insufficient funds'.",
+                "Balance remains unchanged."
+            ]
+        },
+        {
+            "persona": "System Administrator",
+            "scenario": "I need to audit transactions for a specific card.",
+            "need": "Access to a transaction history.",
+            "so_that": "I can resolve disputes.",
+            "acceptance_tests": [
+                "Database query returns all top-up and payment records for that UID."
+            ]
+        },
+        {
+            "persona": "Admin",
+            "scenario": "The network goes down during a top-up.",
+            "need": "The system should handle gracefully without corrupting data.",
+            "so_that": "no partial updates occur.",
+            "acceptance_tests": [
+                "If MQTT publish fails, backend returns error and does not update DB."
+            ]
+        },
+        {
+            "persona": "Cashier",
+            "scenario": "Multiple customers are waiting.",
+            "need": "Payments must be processed quickly.",
+            "so_that": "I can serve customers efficiently.",
+            "acceptance_tests": [
+                "End-to-end payment time under 2 seconds."
+            ]
+        },
+        {
+            "persona": "User",
+            "scenario": "I tap my card to pay, but the dashboard doesn't update immediately.",
+            "need": "I want to see my new balance instantly.",
+            "so_that": "I trust the system.",
+            "acceptance_tests": [
+                "Dashboard updates via WebSocket within 500ms."
+            ]
+        },
+        {
+            "persona": "Developer",
+            "scenario": "I need to understand the MQTT topic structure.",
+            "need": "Clear documentation of topics and payloads.",
+            "so_that": "I can maintain the system.",
+            "acceptance_tests": [
+                "README includes topic list with examples."
+            ]
+        },
+        {
+            "persona": "Admin",
+            "scenario": "I accidentally enter a negative top-up amount.",
+            "need": "The system should reject it.",
+            "so_that": "no invalid transactions occur.",
+            "acceptance_tests": [
+                "Input validation returns error message."
+            ]
+        }
+    ],
+    "edge_cases": [
+        {
+            "scenario": "MQTT broker offline",
+            "handling": "Backend and ESP8266 implement reconnection with exponential backoff. HTTP endpoints return 503 with 'Service unavailable' during broker outage. Pending commands are rejected."
+        },
+        {
+            "scenario": "Card not found in database",
+            "handling": "On top-up, if card doesn't exist, backend creates a new card record with zero balance before applying top-up (or rejects if policy requires pre-registration). On payment, if card not found, return 404."
+        },
+        {
+            "scenario": "Balance mismatch between ESP8266 and database",
+            "handling": "ESP8266 publishes its local balance. Backend compares with database; if mismatch, log and use database as source of truth (or initiate sync via command)."
+        },
+        {
+            "scenario": "Concurrent top-up and payment on same card",
+            "handling": "Database transactions with row locking prevent race conditions. Backend processes commands sequentially per card via MQTT (ESP8266 handles one command at a time)."
+        },
+        {
+            "scenario": "Payment command sent but ESP8266 fails to update",
+            "handling": "Backend sets a timeout (e.g., 5 seconds) for expected balance update. If not received, mark transaction as failed and no database change. Log error."
+        },
+        {
+            "scenario": "Malicious topic publishing",
+            "handling": "MQTT broker ACLs configured to allow only team-specific topics. Backend validates all incoming messages against expected patterns."
+        },
+        {
+            "scenario": "SQLite database locked",
+            "handling": "Use WAL mode and retry logic with backoff. If persistent, return 503."
+        },
+        {
+            "scenario": "Dashboard WebSocket disconnects",
+            "handling": "Client auto-reconnects with exponential backoff. Missed updates are not replayed; dashboard can request current state via HTTP if needed."
+        }
+    ],
+    "data_models": {
+        "cards": {
+            "table": "cards",
+            "schema": {
+                "uid": {
+                    "type": "TEXT",
+                    "primary_key": true,
+                    "description": "RFID card UID"
+                },
+                "balance": {
+                    "type": "INTEGER",
+                    "not_null": true,
+                    "default": 0,
+                    "description": "Current balance in smallest currency unit"
+                },
+                "created_at": {
+                    "type": "DATETIME",
+                    "default": "CURRENT_TIMESTAMP"
+                }
+            },
+            "indexes": [
+                "uid"
+            ]
+        },
+        "products": {
+            "table": "products",
+            "schema": {
+                "id": {
+                    "type": "INTEGER",
+                    "primary_key": true,
+                    "auto_increment": true
+                },
+                "name": {
+                    "type": "TEXT",
+                    "not_null": true
+                },
+                "price": {
+                    "type": "INTEGER",
+                    "not_null": true,
+                    "description": "Price in smallest currency unit"
+                }
+            }
+        },
+        "transactions": {
+            "table": "transactions",
+            "schema": {
+                "id": {
+                    "type": "INTEGER",
+                    "primary_key": true,
+                    "auto_increment": true
+                },
+                "uid": {
+                    "type": "TEXT",
+                    "not_null": true,
+                    "foreign_key": {
+                        "table": "cards",
+                        "column": "uid"
+                    }
+                },
+                "type": {
+                    "type": "TEXT",
+                    "check": "type IN ('TOPUP','PAYMENT')"
+                },
+                "amount": {
+                    "type": "INTEGER",
+                    "not_null": true
+                },
+                "balance_after": {
+                    "type": "INTEGER",
+                    "not_null": true
+                },
+                "product_id": {
+                    "type": "INTEGER",
+                    "foreign_key": {
+                        "table": "products",
+                        "column": "id"
+                    },
+                    "description": "NULL for TOPUP"
+                },
+                "quantity": {
+                    "type": "INTEGER",
+                    "description": "NULL for TOPUP"
+                },
+                "created_at": {
+                    "type": "DATETIME",
+                    "default": "CURRENT_TIMESTAMP"
+                }
+            },
+            "indexes": [
+                "uid",
+                "created_at"
+            ]
+        }
+    },
+    "frontend_pages": {
+        "desktop": {
+            "name": "RFID Wallet Dashboard",
+            "layout": {
+                "grid": "12-column with 16px gutter, 20px margins",
+                "responsive_breakpoints": {
+                    "compact": "<576px",
+                    "regular": "576-992px",
+                    "expanded": "≥992px"
+                },
+                "spacing_scale": "base 4px, tokens 0,4,8,12,16,20,24,32,40,48,64,80,96,128"
+            },
+            "typography": {
+                "primary_font": "SF Pro Display",
+                "monospace": "SF Mono",
+                "secondary": "SF Pro Rounded",
+                "type_scale": {
+                    "display_large": "57pt",
+                    "display_medium": "45pt",
+                    "display_small": "36pt",
+                    "headline": [
+                        "32pt",
+                        "28pt",
+                        "24pt"
+                    ],
+                    "title": [
+                        "22pt",
+                        "16pt",
+                        "14pt"
+                    ],
+                    "body": [
+                        "16pt/1.4",
+                        "14pt/1.4",
+                        "12pt/1.4"
+                    ],
+                    "label": [
+                        "14pt",
+                        "12pt",
+                        "11pt"
+                    ]
+                }
+            },
+            "color_system": {
+                "primary": {
+                    "50": "#eff6ff",
+                    "100": "#dbeafe",
+                    "200": "#bfdbfe",
+                    "300": "#93c5fd",
+                    "400": "#60a5fa",
+                    "500": "#3b82f6",
+                    "600": "#2563eb",
+                    "700": "#1d4ed8",
+                    "800": "#1e40af",
+                    "900": "#1e3a8a"
+                },
+                "neutral": {
+                    "50": "#f9fafb",
+                    "100": "#f3f4f6",
+                    "200": "#e5e7eb",
+                    "300": "#d1d5db",
+                    "400": "#9ca3af",
+                    "500": "#6b7280",
+                    "600": "#4b5563",
+                    "700": "#374151",
+                    "800": "#1f2937",
+                    "900": "#111827"
+                },
+                "functional": {
+                    "success": "#10B981",
+                    "warning": "#F59E0B",
+                    "error": "#EF4444",
+                    "info": "#3B82F6"
+                },
+                "semantic": {
+                    "accentColor": "@primary.500",
+                    "backgroundColor": "@neutral.50",
+                    "foregroundColor": "@neutral.900",
+                    "separatorColor": "@neutral.200"
+                }
+            },
+            "motion": {
+                "timing_functions": {
+                    "standard": "cubic-bezier(0.2,0,1,1) 300ms",
+                    "decelerate": "cubic-bezier(0,0.2,1,1) 400ms",
+                    "accelerate": "cubic-bezier(0.3,0,1,1) 200ms",
+                    "spring": "spring(mass=1, stiffness=500, damping=30)"
+                },
+                "transitions": {
+                    "fade": "opacity 0→1, scale 0.95→1",
+                    "slide": "translateX(20%)→0",
+                    "reveal": "clip-path inset(0 0 0 100%)→inset(0)"
+                },
+                "gesture_feedback": [
+                    "magnetic attraction",
+                    "rubber-band resistance",
+                    "inertia scrolling"
+                ]
+            },
+            "accessibility": {
+                "dynamic_type_scaling": "0.5 to 3.0",
+                "color_contrast": {
+                    "normal_text": "4.5:1 minimum",
+                    "large_text": "3.0:1 minimum"
+                },
+                "screen_reader_announcements": [
+                    "immediate",
+                    "polite",
+                    "assertive"
+                ],
+                "reduced_motion_alternatives": true
+            },
+            "haptics": {
+                "impact_styles": [
+                    "light",
+                    "medium",
+                    "heavy",
+                    "rigid",
+                    "soft"
+                ],
+                "notification_feedback": [
+                    "success",
+                    "warning",
+                    "error"
+                ],
+                "selection_feedback": true,
+                "usage_patterns": {
+                    "button_press": "medium impact",
+                    "toggle": "light",
+                    "success": "success notification"
+                }
+            },
+            "navigation_patterns": {
+                "hierarchical": "push/pop with swipe back",
+                "modal_sheets": {
+                    "detents": [
+                        "medium",
+                        "large"
+                    ],
+                    "corner_radius": 12,
+                    "drag_indicator": true
+                },
+                "tab_based": {
+                    "max_tabs": 5,
+                    "badge_style": "rounded"
+                }
+            },
+            "platform_conventions": {
+                "gestures": {
+                    "swipe_actions": [
+                        "trailing",
+                        "leading"
+                    ],
+                    "context_menu": "long press",
+                    "pull_to_refresh": true
+                },
+                "text_input": {
+                    "keyboard_types": [
+                        "default",
+                        "numberPad"
+                    ],
+                    "return_key": "done"
+                },
+                "system_integration": {}
+            },
+            "components": {
+                "top_up_interface": {
+                    "fields": [
+                        {
+                            "name": "cardUid",
+                            "label": "Card UID",
+                            "type": "text",
+                            "auto": true
+                        },
+                        {
+                            "name": "previousBalance",
+                            "label": "Previous Balance",
+                            "type": "text",
+                            "readonly": true
+                        },
+                        {
+                            "name": "amount",
+                            "label": "Top-up Amount",
+                            "type": "number",
+                            "min": 1
+                        }
+                    ],
+                    "button": "TOP UP",
+                    "result_area": "Success/Fail + New Balance"
+                },
+                "payment_interface": {
+                    "fields": [
+                        {
+                            "name": "cardUid",
+                            "label": "Card UID",
+                            "type": "text",
+                            "auto": true
+                        },
+                        {
+                            "name": "previousBalance",
+                            "label": "Previous Balance",
+                            "type": "text",
+                            "readonly": true
+                        },
+                        {
+                            "name": "product",
+                            "label": "Product/Service",
+                            "type": "dropdown",
+                            "options_from": "/products"
+                        },
+                        {
+                            "name": "quantity",
+                            "label": "Quantity",
+                            "type": "number",
+                            "min": 1
+                        },
+                        {
+                            "name": "total",
+                            "label": "Total Cost",
+                            "type": "text",
+                            "readonly": true
+                        }
+                    ],
+                    "button": "PAY",
+                    "result_area": "Approved/Declined + Reason + New Balance"
+                }
+            }
+        }
+    },
+    "backend_services": {
+        "api_service": {
+            "technology": "Node.js + Express + TypeScript",
+            "components": [
+                "HTTP server with endpoints /topup, /pay, /products",
+                "Input validation with Zod",
+                "CORS enabled",
+                "Rate limiting"
+            ]
+        },
+        "mqtt_client": {
+            "technology": "mqtt package",
+            "components": [
+                "Connection to broker (broker.hivemq.com:1883) with TLS",
+                "Subscriptions to rfid/kawacukennedy/card/status and rfid/kawacukennedy/card/balance",
+                "Publishes to rfid/kawacukennedy/card/topup and rfid/kawacukennedy/card/pay",
+                "Reconnection logic with exponential backoff"
+            ]
+        },
+        "websocket_service": {
+            "technology": "ws package",
+            "components": [
+                "WebSocket server attached to HTTP server",
+                "Broadcasts balance updates to all connected clients",
+                "Heartbeat mechanism to detect stale connections"
+            ]
+        },
+        "database_service": {
+            "technology": "better-sqlite3",
+            "components": [
+                "Connection pool with WAL mode",
+                "Transaction helper functions for atomic updates",
+                "Prepared statements for performance"
+            ]
+        }
+    },
+    "api_specifications": {
+        "internal": {
+            "http": [
+                {
+                    "endpoint": "POST /topup",
+                    "request_body": {
+                        "uid": "string",
+                        "amount": "integer"
+                    },
+                    "responses": {
+                        "202": {
+                            "status": "processing"
+                        },
+                        "400": {
+                            "error": "Invalid input"
+                        },
+                        "503": {
+                            "error": "Service unavailable"
+                        }
+                    }
+                },
+                {
+                    "endpoint": "POST /pay",
+                    "request_body": {
+                        "uid": "string",
+                        "productId": "integer",
+                        "quantity": "integer"
+                    },
+                    "responses": {
+                        "202": {
+                            "status": "processing"
+                        },
+                        "400": {
+                            "error": "Invalid input"
+                        },
+                        "402": {
+                            "error": "Insufficient balance"
+                        },
+                        "404": {
+                            "error": "Card or product not found"
+                        }
+                    }
+                },
+                {
+                    "endpoint": "GET /products",
+                    "responses": {
+                        "200": [
+                            {
+                                "id": 1,
+                                "name": "Coffee",
+                                "price": 250
+                            }
+                        ]
+                    }
+                }
+            ],
+            "websocket": {
+                "event": "BALANCE_UPDATE",
+                "payload": {
+                    "uid": "string",
+                    "newBalance": "integer",
+                    "previousBalance": "integer",
+                    "transactionType": "TOPUP | PAYMENT",
+                    "amount": "integer"
+                }
+            },
+            "mqtt": {
+                "topics": {
+                    "rfid/kawacukennedy/card/status": {
+                        "direction": "ESP8266 → Backend",
+                        "payload": {
+                            "uid": "string",
+                            "balance": "integer"
+                        }
+                    },
+                    "rfid/kawacukennedy/card/topup": {
+                        "direction": "Backend → ESP8266",
+                        "payload": {
+                            "uid": "string",
+                            "amount": "integer"
+                        }
+                    },
+                    "rfid/kawacukennedy/card/pay": {
+                        "direction": "Backend → ESP8266",
+                        "payload": {
+                            "uid": "string",
+                            "amount": "integer"
+                        }
+                    },
+                    "rfid/kawacukennedy/card/balance": {
+                        "direction": "ESP8266 → Backend",
+                        "payload": {
+                            "uid": "string",
+                            "balance": "integer",
+                            "lastAmount": "integer",
+                            "lastType": "TOPUP|PAYMENT"
+                        }
+                    }
+                }
+            }
+        },
+        "external": {}
+    },
+    "background_jobs": [
+        {
+            "name": "Transaction Log Pruning",
+            "schedule": "0 0 * * 0 (weekly)",
+            "description": "Delete transactions older than 1 year to save space.",
+            "actions": [
+                "DELETE FROM transactions WHERE created_at < datetime('now', '-1 year')"
+            ],
+            "resource_limits": {
+                "max_duration": "5 minutes"
+            }
+        }
+    ],
+    "state_management": {
+        "client_side": {
+            "store": "Zustand (or plain JS object with event listeners)",
+            "persistence": "sessionStorage for active card data",
+            "ui_state": [
+                "currentTab",
+                "formInputs",
+                "balanceCache",
+                "websocketStatus"
+            ]
+        },
+        "server_side": {
+            "database": "SQLite with connection pooling",
+            "cache": "in-memory for recent balances (optional)"
+        },
+        "offline_state": {
+            "sync_engine": "not applicable (always online)"
+        }
+    },
+    "error_handling": {
+        "categories": [
+            {
+                "code_range": "1000-1999",
+                "type": "user_error",
+                "examples": [
+                    "INVALID_AMOUNT",
+                    "INSUFFICIENT_BALANCE",
+                    "CARD_NOT_FOUND"
+                ],
+                "handling": "Return 4xx with descriptive message"
+            },
+            {
+                "code_range": "2000-2999",
+                "type": "system_error",
+                "examples": [
+                    "DATABASE_ERROR",
+                    "MQTT_PUBLISH_FAILED"
+                ],
+                "handling": "Log error, return 503, retry with backoff"
+            },
+            {
+                "code_range": "3000-3999",
+                "type": "network_error",
+                "examples": [
+                    "BROKER_DISCONNECTED",
+                    "TIMEOUT"
+                ],
+                "handling": "Reconnect, queue commands (if idempotent), return 503"
+            }
+        ],
+        "recovery_strategies": {
+            "automatic_retry": "MQTT reconnect with backoff",
+            "circuit_breakers": "For database failures, trip after 5 failures",
+            "fallbacks": "Return cached balance if database unavailable for read-only operations"
+        },
+        "error_reporting": {
+            "tool": "Sentry",
+            "events": [
+                "uncaught exceptions",
+                "database errors",
+                "MQTT failures"
+            ]
+        }
+    },
+    "permissions": {
+        "capability_types": [
+            {
+                "name": "topup",
+                "description": "Perform top-up operations"
+            },
+            {
+                "name": "payment",
+                "description": "Perform payment operations"
+            },
+            {
+                "name": "view_products",
+                "description": "View product list"
+            }
+        ],
+        "grant_mechanism": "Simple role assignment (admin or cashier) via environment variable or basic auth",
+        "runtime_enforcement": "Middleware on HTTP endpoints",
+        "user_consent_levels": []
+    },
+    "analytics": {
+        "privacy_preserving": {
+            "method": "On-device aggregation with differential privacy (not implemented in MVP)"
+        },
+        "metrics_collection": [
+            {
+                "name": "transaction_count",
+                "type": "counter",
+                "tags": [
+                    "type"
+                ]
+            },
+            {
+                "name": "topup_amount_sum",
+                "type": "histogram"
+            },
+            {
+                "name": "payment_amount_sum",
+                "type": "histogram"
+            },
+            {
+                "name": "response_time_ms",
+                "type": "histogram",
+                "tags": [
+                    "endpoint"
+                ]
+            }
+        ],
+        "reporting": {
+            "real_time_dashboards": "Prometheus + Grafana",
+            "batch_reports": "Weekly summary via email"
+        }
+    },
+    "security": {
+        "cryptography": {
+            "storage": "SQLite file encrypted at rest via OS-level (optional)",
+            "transport": "HTTPS and MQTT over TLS",
+            "e2ee": "Not required"
+        },
+        "authentication": {
+            "device": "None (ESP8266 not authenticated)",
+            "user": "Optional basic auth for dashboard",
+            "mfa": "Not implemented"
+        },
+        "vulnerability_management": "Regular dependency scanning with npm audit, Dependabot",
+        "compliance": {
+            "gdpr": "Data retention limited, user can request deletion",
+            "hipaa": "Not applicable",
+            "soc2": "Not applicable"
+        }
+    },
+    "performance_considerations": {
+        "startup_optimization": {
+            "lazy_loading": "Database connection established on first request",
+            "caching": "Product list cached in memory for 5 minutes"
+        },
+        "runtime_optimization": {
+            "database": "Prepared statements, WAL mode, indexes",
+            "mqtt": "Process messages asynchronously",
+            "websocket": "Broadcast only to relevant clients (simple)"
+        },
+        "resource_management": {
+            "cpu": "Node.js cluster mode for multi-core",
+            "memory": "Limit WebSocket connections per instance",
+            "battery": "Not applicable"
+        }
+    },
+    "scalability_strategies": {
+        "horizontal_scaling": "Multiple backend instances behind load balancer",
+        "sharding_strategies": "By card UID range if using PostgreSQL",
+        "caching": "Redis for balance cache to reduce database load",
+        "database_optimization": "Switch from SQLite to PostgreSQL for high concurrency"
+    },
+    "testing_plans": {
+        "unit_tests": {
+            "coverage_target": "80%",
+            "frameworks": [
+                "Jest",
+                "ts-jest"
+            ]
+        },
+        "integration_tests": {
+            "pyramid": "Test API with in-memory SQLite and mock MQTT broker"
+        },
+        "performance_tests": {
+            "load": "Artillery tests with 100 concurrent users",
+            "stress": "Gradually increase load until failure",
+            "endurance": "Sustained load for 1 hour",
+            "speech_latency": "Not applicable"
+        },
+        "security_tests": {
+            "static": "ESLint with security plugins",
+            "dynamic": "OWASP ZAP scan on deployed app"
+        },
+        "usability_tests": "User testing with 5 participants to validate iOS design"
+    },
+    "ci_cd": {
+        "pipeline_stages": [
+            {
+                "name": "validate",
+                "steps": [
+                    "lint",
+                    "typecheck"
+                ]
+            },
+            {
+                "name": "test",
+                "steps": [
+                    "unit tests",
+                    "integration tests"
+                ]
+            },
+            {
+                "name": "build",
+                "steps": [
+                    "compile TypeScript",
+                    "build frontend"
+                ]
+            },
+            {
+                "name": "deploy",
+                "steps": [
+                    "push to VPS via rsync",
+                    "restart PM2"
+                ]
+            }
+        ],
+        "environments": [
+            {
+                "name": "development",
+                "branch": "dev",
+                "auto_deploy": false
+            },
+            {
+                "name": "staging",
+                "branch": "main",
+                "auto_deploy": true
+            },
+            {
+                "name": "production",
+                "branch": "prod",
+                "auto_deploy": false
+            }
+        ],
+        "release_management": {
+            "versioning": "Semantic versioning",
+            "channels": [
+                "stable"
+            ],
+            "rollout": "Blue-green deployment via Nginx"
+        }
+    },
+    "deployment": {
+        "infrastructure": {
+            "compute": "VPS (Ubuntu 22.04, 2GB RAM, 2 vCPU)",
+            "process_manager": "PM2",
+            "reverse_proxy": "Nginx",
+            "ssl": "Let's Encrypt"
+        },
+        "monitoring": {
+            "metrics": "Prometheus + Node exporter",
+            "logs": "Winston with file rotation",
+            "tracing": "Jaeger (optional)"
+        },
+        "disaster_recovery": {
+            "rpo": "1 hour (database backups every hour)",
+            "rto": "30 minutes"
+        }
+    },
+    "environment_configuration": {
+        "config_management": {
+            "hierarchical": "default.json, production.json overrides",
+            "dynamic": "Environment variables via .env"
+        },
+        "secrets": {
+            "tool": "dotenv, not committed",
+            "items": [
+                "MQTT_PASSWORD",
+                "DB_ENCRYPTION_KEY"
+            ]
+        },
+        "feature_toggles": {
+            "enable_websocket_compression": false,
+            "use_mock_esp": false
+        }
+    },
+    "documentation_structure": {
+        "user_docs": [
+            "Admin guide: how to top up",
+            "Cashier guide: how to process payments"
+        ],
+        "developer_docs": [
+            "Architecture overview",
+            "MQTT topics and payloads",
+            "API endpoints",
+            "Database schema",
+            "Setup instructions"
+        ],
+        "operations_docs": [
+            "Deployment guide",
+            "Monitoring and alerting",
+            "Backup and restore"
+        ]
+    },
+    "technology_stack": {
+        "core": "Node.js (TypeScript)",
+        "frontend": {
+            "desktop": "HTML, Tailwind CSS, vanilla JavaScript"
+        },
+        "backend_services": {
+            "api": "Express",
+            "mqtt": "mqtt",
+            "websocket": "ws",
+            "database": "better-sqlite3"
+        },
+        "esp8266": {
+            "framework": "Arduino",
+            "libraries": [
+                "PubSubClient",
+                "MFRC522",
+                "EEPROM"
+            ]
+        },
+        "databases": {
+            "primary": "SQLite"
+        },
+        "infrastructure": {
+            "vps": "Ubuntu",
+            "monitoring": "Prometheus + Grafana"
+        },
+        "tooling": {
+            "linting": "ESLint",
+            "formatting": "Prettier",
+            "testing": "Jest",
+            "ci": "GitHub Actions"
+        }
+    },
+    "codebase_organization": {
+        "repository": "https://github.com/kawacukennedy/new_rfid_payment_system.git",
+        "structure": {
+            "/backend": {
+                "src": {
+                    "index.ts": "entry point",
+                    "mqtt": "MQTT client and handlers",
+                    "http": "Express routes and controllers",
+                    "websocket": "WebSocket server",
+                    "db": "database connection and models",
+                    "config": "configuration"
+                },
+                "tests": "unit and integration tests",
+                "package.json": "dependencies",
+                "tsconfig.json": "TypeScript config"
+            },
+            "/frontend": {
+                "index.html": "main page",
+                "styles.css": "Tailwind imports",
+                "app.js": "frontend logic",
+                "assets": "images, fonts"
+            },
+            "/esp8266": {
+                "src": {
+                    "main.cpp": "ESP8266 firmware",
+                    "config.h": "WiFi and MQTT credentials"
+                },
+                "platformio.ini": "PlatformIO config"
+            },
+            "/docs": "additional documentation",
+            "README.md": "project overview"
+        }
+    },
+    "testing_and_running": {
+        "local_development": [
+            "git clone https://github.com/kawacukennedy/new_rfid_payment_system.git",
+            "cd backend && npm install",
+            "cp .env.example .env",
+            "npm run dev"
+        ],
+        "testing_commands": [
+            "npm run lint",
+            "npm run test:unit",
+            "npm run test:integration"
+        ],
+        "production_build": [
+            "npm run build",
+            "pm2 start dist/index.js --name rfid-backend"
+        ]
+    },
+    "deployment_and_distribution": {
+        "app_stores": "Not applicable",
+        "auto_updates": {
+            "backend": "PM2 auto-restart on file change",
+            "esp8266": "OTA updates via Arduino (optional)"
+        }
+    },
+    "notification_system": {
+        "personalization_logic": "None",
+        "delivery_channels": {
+            "websocket": "real-time dashboard updates"
+        },
+        "push_proxy": "None",
+        "user_control": "Dashboard always connected"
+    },
+    "autonomous_tasks": {
+        "capabilities": [],
+        "execution_modes": [],
+        "planning": [],
+        "examples": []
+    },
+    "ios_26_design_system": {
+        "layout_systems": {
+            "responsive_breakpoints": {
+                "compact": "<576px",
+                "regular": "576–992px",
+                "expanded": "≥992px"
+            },
+            "grid": "12‑column, 16px gutter, 20px margins",
+            "spacing_scale": "base 4px, tokens 0,4,8,12,16,20,24,32,40,48,64,80,96,128"
+        },
+        "typography": {
+            "primary_font": "SF Pro Display",
+            "monospace": "SF Mono",
+            "secondary": "SF Pro Rounded",
+            "type_scale": {
+                "display_large": "57pt",
+                "display_medium": "45pt",
+                "display_small": "36pt",
+                "headline": [
+                    "32pt",
+                    "28pt",
+                    "24pt"
+                ],
+                "title": [
+                    "22pt",
+                    "16pt",
+                    "14pt"
+                ],
+                "body": [
+                    "16pt/1.4",
+                    "14pt/1.4",
+                    "12pt/1.4"
+                ],
+                "label": [
+                    "14pt",
+                    "12pt",
+                    "11pt"
+                ]
+            }
+        },
+        "motion": {
+            "timing_functions": {
+                "standard": "cubic-bezier(0.2,0,1,1) 300ms",
+                "decelerate": "cubic-bezier(0,0.2,1,1) 400ms",
+                "accelerate": "cubic-bezier(0.3,0,1,1) 200ms",
+                "spring": "spring(mass=1, stiffness=500, damping=30)"
+            },
+            "transitions": {
+                "fade": "opacity 0→1, scale 0.95→1",
+                "slide": "translateX(20%)→0",
+                "reveal": "clip-path inset(0 0 0 100%)→inset(0)"
+            },
+            "gesture_feedback": [
+                "magnetic attraction",
+                "rubber-band resistance",
+                "inertia scrolling"
+            ]
+        },
+        "accessibility": {
+            "dynamic_type_scaling": "0.5 to 3.0",
+            "color_contrast": {
+                "normal_text": "4.5:1 minimum",
+                "large_text": "3.0:1 minimum"
+            },
+            "screen_reader_announcements": [
+                "immediate",
+                "polite",
+                "assertive"
+            ],
+            "reduced_motion_alternatives": true
+        },
+        "color_system": {
+            "primary": {
+                "50": "#eff6ff",
+                "100": "#dbeafe",
+                "200": "#bfdbfe",
+                "300": "#93c5fd",
+                "400": "#60a5fa",
+                "500": "#3b82f6",
+                "600": "#2563eb",
+                "700": "#1d4ed8",
+                "800": "#1e40af",
+                "900": "#1e3a8a"
+            },
+            "neutral": {
+                "50": "#f9fafb",
+                "100": "#f3f4f6",
+                "200": "#e5e7eb",
+                "300": "#d1d5db",
+                "400": "#9ca3af",
+                "500": "#6b7280",
+                "600": "#4b5563",
+                "700": "#374151",
+                "800": "#1f2937",
+                "900": "#111827"
+            },
+            "functional": {
+                "success": "#10B981",
+                "warning": "#F59E0B",
+                "error": "#EF4444",
+                "info": "#3B82F6"
+            },
+            "semantic": {
+                "accentColor": "@primary.500",
+                "backgroundColor": "@neutral.50",
+                "foregroundColor": "@neutral.900",
+                "separatorColor": "@neutral.200"
+            }
+        },
+        "haptics": {
+            "impact_styles": [
+                "light",
+                "medium",
+                "heavy",
+                "rigid",
+                "soft"
+            ],
+            "notification_feedback": [
+                "success",
+                "warning",
+                "error"
+            ],
+            "selection_feedback": true,
+            "usage_patterns": {
+                "button_press": "medium impact",
+                "toggle": "light",
+                "success": "success notification"
+            }
+        },
+        "navigation_patterns": {
+            "hierarchical": "push/pop with swipe back",
+            "modal_sheets": {
+                "detents": [
+                    "medium",
+                    "large"
+                ],
+                "corner_radius": 12,
+                "drag_indicator": true
+            },
+            "tab_based": {
+                "max_tabs": 5,
+                "badge_style": "rounded"
+            }
+        },
+        "platform_conventions": {
+            "gestures": {
+                "swipe_actions": [
+                    "trailing",
+                    "leading"
+                ],
+                "context_menu": "long press",
+                "pull_to_refresh": true
+            },
+            "text_input": {
+                "keyboard_types": [
+                    "default",
+                    "numberPad"
+                ],
+                "return_key": "done"
+            },
+            "system_integration": {}
+        }
+    },
+    "pricing_models": [],
+    "payment_integration": {
+        "bank_payments": "Not applicable",
+        "crypto": "Not applicable"
+    },
+    "update_mechanism": {
+        "overview": "ESP8266 firmware can be updated OTA via Arduino IDE or platformio; backend updates via git pull and PM2 restart.",
+        "components": {
+            "update_server": "None",
+            "client_engine": "ESP8266 OTA library"
+        },
+        "edge_cases": [
+            "Update failure rolls back to previous version"
+        ]
+    },
+    "security_enhancements": [
+        "Input validation on all API endpoints",
+        "Rate limiting to prevent abuse",
+        "HTTPS and MQTT TLS",
+        "SQLite file permissions restricted",
+        "Environment variables for secrets"
+    ],
+    "onboarding": {
+        "wizard_steps": [
+            {
+                "step": 1,
+                "title": "Welcome",
+                "content": "This dashboard allows you to top up cards (Admin) or process payments (Cashier)."
+            },
+            {
+                "step": 2,
+                "title": "Admin Interface",
+                "content": "Enter card UID and amount, then click TOP UP. The balance will update in real time."
+            },
+            {
+                "step": 3,
+                "title": "Cashier Interface",
+                "content": "Select product, quantity, and tap card. System will show approval and new balance."
+            }
+        ],
+        "design_notes": "Onboarding modal with large headline, SF Pro, and 'Continue' button using accent color."
+    },
+    "ui_cross_platform": {
+        "desktop": "Full iOS 26 design as described",
+        "mobile": "Not targeted",
+        "terminal": "Not applicable"
+    },
+    "authentication": {
+        "methods": [
+            "Basic Auth (optional) or none"
+        ],
+        "session_management": "Stateless (no sessions)",
+        "mfa": "Not implemented"
+    }
+}
