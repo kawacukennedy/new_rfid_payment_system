@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node src/index.ts",
-    "build": "tsc",
+    "build": "tsc && cp src/db/schema.sql dist/db/",
     "start": "node dist/index.js",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "jest tests/db.test.ts",
@@ -13,7 +13,12 @@
     "lint": "eslint 'src/**/*.{ts,js}'",
     "format": "prettier --write 'src/**/*.{ts,js}'"
   },
-  "keywords": ["rfid", "payment", "mqtt", "websocket"],
+  "keywords": [
+    "rfid",
+    "payment",
+    "mqtt",
+    "websocket"
+  ],
   "author": "kawacukennedy",
   "license": "ISC",
   "type": "commonjs",
