@@ -20,8 +20,8 @@ app.use(express.json());
 app.use((req, res, next) => {
     res.setHeader(
         'Content-Security-Policy',
-        "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline'; " +
+        "default-src 'self' http://157.173.101.159:8246; " +
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; " +
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
         "font-src 'self' https://fonts.gstatic.com; " +
         "connect-src 'self' ws: wss: http://broker.benax.rw:1883 http://157.173.101.159:8246; " +
