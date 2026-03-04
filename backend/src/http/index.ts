@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
-import { topUpCard, processPayment, getProducts, findUserByUsername, createUser, saveReceipt, getReceiptByTransactionId } from '../db';
+import { topUpCard, processPayment, getProducts, findUserByUsername, createUser, saveReceipt, getReceiptByTransactionId, getRecentTransactions } from '../db';
 import { publishMessage } from '../mqtt';
 import { broadcastBalanceUpdate } from '../websocket';
 import bcrypt from 'bcryptjs';

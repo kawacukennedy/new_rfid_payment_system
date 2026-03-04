@@ -64,6 +64,14 @@ const queries = {
     // Receipts
     getReceiptByTx: db.prepare('SELECT * FROM receipts WHERE transaction_id = ?'),
     createReceipt: db.prepare('INSERT INTO receipts (transaction_id, receipt_data) VALUES (?, ?) RETURNING *'),
+    getRecentTransactions: db.prepare(`
+        SELECT t.*, p.name as product_name, 
+        (SELECT 1 FROM receipts r WHERE r.transaction_id = t.id) as has_receipt
+        FROM transactions t
+        LEFT JOIN products p ON t.product_id = p.id
+        ORDER BY t.created_at DESC
+        LIMIT ?
+    `),
 };
 
 export const getCard = (uid: string): Card | undefined => {
@@ -151,5 +159,9 @@ export const saveReceipt = (transactionId: number | bigint, receiptData: object)
 
 export const getReceiptByTransactionId = (transactionId: number | bigint): Receipt | undefined => {
     return queries.getReceiptByTx.get(transactionId) as Receipt | undefined;
+};
+
+export const getRecentTransactions = (limit: number = 20): any[] => {
+    return queries.getRecentTransactions.all(limit);
 };
 
