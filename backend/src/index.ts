@@ -37,7 +37,7 @@ app.use(express.static(frontendPath));
 app.use('/api', apiRoutes);
 
 // Fallback to index.html for SPA behavior
-app.get('*', (req, res, next) => {
+app.get('*all', (req, res, next) => {
     if (req.path.startsWith('/api')) return next();
     res.sendFile(path.join(frontendPath, 'index.html'));
 });

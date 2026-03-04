@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:3000';
+const API_BASE = `${window.location.protocol}//${window.location.host}/api`;
 let products = [];
 let ws;
 let reconnectInterval;
@@ -53,7 +53,7 @@ tabPayment.addEventListener('click', () => switchTab('payment'));
 
 // -- WebSocket Logic --
 function connectWebSocket() {
-    ws = new WebSocket('ws://localhost:3000');
+    ws = new WebSocket(`${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`);
 
     ws.onopen = () => {
         console.log('Connected to WebSocket server');
@@ -162,7 +162,7 @@ payQuantity.addEventListener('input', updateTotal);
 // -- Submit Handlers --
 function showMessage(element, type, message) {
     element.className = `mt-4 p-4 rounded-xl flex items-center mb-0 text-[14pt] animate-spring ${type === 'success' ? 'bg-[#ECFDF5] text-semantic-success border border-semantic-success/20' :
-            'bg-[#FEF2F2] text-semantic-error border border-semantic-error/20'
+        'bg-[#FEF2F2] text-semantic-error border border-semantic-error/20'
         }`;
 
     const icon = type === 'success'
