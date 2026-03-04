@@ -114,3 +114,4 @@ export const processPayment = db.transaction((uid: string, productId: number, qu
 
     return { newBalance, transactionId: info.lastInsertRowid };
 });
+
