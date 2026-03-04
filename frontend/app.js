@@ -2,62 +2,237 @@ const API_BASE = `${window.location.protocol}//${window.location.host}/api`;
 let products = [];
 let ws;
 let reconnectInterval;
+let currentUser = JSON.parse(localStorage.getItem('user')) || null;
+let authToken = localStorage.getItem('token') || null;
 
-// -- UI Elements --
-const tabTopup = document.getElementById('tab-topup');
+// -- UI Elements: Auth --
+const authLayer = document.getElementById('auth-layer');
+const authForm = document.getElementById('auth-form');
+const authUsername = document.getElementById('auth-username');
+const authPassword = document.getElementById('auth-password');
+const authSubmitBtn = document.getElementById('auth-submit-btn');
+const authFeedback = document.getElementById('auth-feedback');
+const toggleAuthMode = document.getElementById('toggle-auth-mode');
+const authTitle = document.getElementById('auth-title');
+const authSubtitle = document.getElementById('auth-subtitle');
+
+// -- UI Elements: Dashboard --
+const dashboardLayer = document.getElementById('dashboard-layer');
+const logoutBtn = document.getElementById('logout-btn');
 const tabPayment = document.getElementById('tab-payment');
-const sectionTopup = document.getElementById('section-topup');
-const sectionPayment = document.getElementById('section-payment');
+const tabTopup = document.getElementById('tab-topup');
+const panelPayment = document.getElementById('panel-payment');
+const panelTopup = document.getElementById('panel-topup');
+const payForm = document.getElementById('pay-form');
+const topupForm = document.getElementById('topup-form');
+const tappedUid = document.getElementById('tapped-uid');
+const tappedBalance = document.getElementById('tapped-balance');
+const wsIndicator = document.getElementById('ws-indicator');
+const wsText = document.getElementById('ws-text');
 
-const formTopup = document.getElementById('form-topup');
-const formPayment = document.getElementById('form-payment');
-const topupUid = document.getElementById('topup-uid');
-const topupAmount = document.getElementById('topup-amount');
-const payUid = document.getElementById('pay-uid');
+// -- UI Elements: Receipt --
+const receiptOverlay = document.getElementById('receipt-overlay');
+const receiptModal = document.getElementById('receipt-modal');
+const closeReceipt = document.getElementById('close-receipt');
+
+// -- Auth Logic --
+let isLoginMode = true;
+
+function updateAuthUI() {
+    if (authToken && currentUser) {
+        authLayer.classList.add('hidden-auth');
+        dashboardLayer.classList.remove('opacity-0', 'pointer-events-none', 'blur-xl');
+        initDashboard();
+    } else {
+        authLayer.classList.remove('hidden-auth');
+        dashboardLayer.classList.add('opacity-0', 'pointer-events-none', 'blur-xl');
+    }
+}
+
+toggleAuthMode.addEventListener('click', () => {
+    isLoginMode = !isLoginMode;
+    authTitle.innerText = isLoginMode ? 'Welcome' : 'Create Account';
+    authSubtitle.innerText = isLoginMode ? 'Sign in to manage RFID wallets' : 'Register to get started';
+    authSubmitBtn.innerText = isLoginMode ? 'Sign In' : 'Sign Up';
+    toggleAuthMode.innerText = isLoginMode ? 'Create new account' : 'Already have an account? Sign In';
+});
+
+authForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const endpoint = isLoginMode ? '/auth/login' : '/auth/register';
+    const body = { username: authUsername.value, password: authPassword.value };
+
+    try {
+        const res = await fetch(`${API_BASE}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            if (isLoginMode) {
+                authToken = data.token;
+                currentUser = data.user;
+                localStorage.setItem('token', authToken);
+                localStorage.setItem('user', JSON.stringify(currentUser));
+                updateAuthUI();
+            } else {
+                isLoginMode = true;
+                toggleAuthMode.click();
+                authFeedback.innerText = 'Registration successful! Please sign in.';
+                authFeedback.classList.remove('hidden', 'text-ios-red');
+                authFeedback.classList.add('text-ios-green');
+            }
+        } else {
+            authFeedback.innerText = data.error || 'Authentication failed';
+            authFeedback.classList.remove('hidden');
+        }
+    } catch (err) {
+        authFeedback.innerText = 'Network error';
+        authFeedback.classList.remove('hidden');
+    }
+});
+
+logoutBtn.addEventListener('click', () => {
+    authToken = null;
+    currentUser = null;
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    updateAuthUI();
+    if (ws) ws.close();
+});
+
+// -- Dashboard Logic --
+function initDashboard() {
+    connectWebSocket();
+    loadProducts();
+}
+
+tabPayment.addEventListener('click', () => switchTab('payment'));
+tabTopup.addEventListener('click', () => switchTab('topup'));
+
+function switchTab(tab) {
+    const isPayment = tab === 'payment';
+
+    // UI Classes
+    tabPayment.classList.toggle('bg-white', isPayment);
+    tabPayment.classList.toggle('shadow-sm', isPayment);
+    tabPayment.classList.toggle('text-ios-blue', isPayment);
+    tabPayment.classList.toggle('text-slate-500', !isPayment);
+
+    tabTopup.classList.toggle('bg-white', !isPayment);
+    tabTopup.classList.toggle('shadow-sm', !isPayment);
+    tabTopup.classList.toggle('text-ios-blue', !isPayment);
+    tabTopup.classList.toggle('text-slate-500', isPayment);
+
+    // Panel Visibility
+    panelPayment.classList.toggle('opacity-100', isPayment);
+    panelPayment.classList.toggle('scale-100', isPayment);
+    panelPayment.classList.toggle('z-10', isPayment);
+    panelPayment.classList.toggle('opacity-0', !isPayment);
+    panelPayment.classList.toggle('scale-95', !isPayment);
+    panelPayment.classList.toggle('pointer-events-none', !isPayment);
+
+    panelTopup.classList.toggle('opacity-100', !isPayment);
+    panelTopup.classList.toggle('scale-100', !isPayment);
+    panelTopup.classList.toggle('z-10', !isPayment);
+    panelTopup.classList.toggle('opacity-0', isPayment);
+    panelTopup.classList.toggle('scale-95', isPayment);
+    panelTopup.classList.toggle('pointer-events-none', isPayment);
+}
+
+// -- API Helpers --
+async function authenticatedFetch(endpoint, options = {}) {
+    options.headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${authToken}`
+    };
+    return fetch(`${API_BASE}${endpoint}`, options);
+}
+
+// -- Products & Payment --
+async function loadProducts() {
+    try {
+        const res = await fetch(`${API_BASE}/products`);
+        products = await res.json();
+        const select = document.getElementById('pay-product');
+        select.innerHTML = '<option value="" disabled selected>Choose a product</option>';
+        products.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.innerText = `${p.name} (${p.price} CR)`;
+            select.appendChild(opt);
+        });
+    } catch (err) { console.error('Load products err:', err); }
+}
+
 const payProduct = document.getElementById('pay-product');
 const payQuantity = document.getElementById('pay-quantity');
 const payTotal = document.getElementById('pay-total');
 
-const tappedUid = document.getElementById('tapped-uid');
-const tappedBalance = document.getElementById('tapped-balance');
-const wsIndicator = document.getElementById('ws-indicator');
-
-const topupResult = document.getElementById('topup-result');
-const payResult = document.getElementById('pay-result');
-
-// -- Tab Switching Logic --
-function switchTab(tab) {
-    if (tab === 'payment') {
-        tabPayment.classList.replace('tab-inactive', 'tab-active');
-        tabTopup.classList.replace('tab-active', 'tab-inactive');
-
-        sectionPayment.classList.remove('opacity-0', 'translate-x-[110%]', 'pointer-events-none', 'z-0');
-        sectionPayment.classList.add('opacity-100', 'translate-x-0', 'z-10');
-
-        sectionTopup.classList.remove('opacity-100', 'translate-x-0', 'z-10');
-        sectionTopup.classList.add('opacity-0', '-translate-x-[110%]', 'pointer-events-none', 'z-0');
-    } else {
-        tabTopup.classList.replace('tab-inactive', 'tab-active');
-        tabPayment.classList.replace('tab-active', 'tab-inactive');
-
-        sectionTopup.classList.remove('opacity-0', '-translate-x-[110%]', 'pointer-events-none', 'z-0');
-        sectionTopup.classList.add('opacity-100', 'translate-x-0', 'z-10');
-
-        sectionPayment.classList.remove('opacity-100', 'translate-x-0', 'z-10');
-        sectionPayment.classList.add('opacity-0', 'translate-x-[110%]', 'pointer-events-none', 'z-0');
-    }
+function calculateTotal() {
+    const productId = parseInt(payProduct.value);
+    const qty = parseInt(payQuantity.value) || 0;
+    const product = products.find(p => p.id === productId);
+    payTotal.innerText = product ? (product.price * qty) : 0;
 }
 
-tabTopup.addEventListener('click', () => switchTab('topup'));
-tabPayment.addEventListener('click', () => switchTab('payment'));
+payProduct.addEventListener('change', calculateTotal);
+payQuantity.addEventListener('input', calculateTotal);
+
+payForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = {
+        uid: tappedUid.innerText,
+        productId: parseInt(payProduct.value),
+        quantity: parseInt(payQuantity.value)
+    };
+    if (body.uid === 'Waiting for tap...') return alert('Please tap a card first');
+
+    try {
+        const res = await authenticatedFetch('/pay', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showReceipt(data.receipt);
+            animateBalance(parseInt(tappedBalance.innerText), data.newBalance);
+        } else {
+            alert(data.error);
+        }
+    } catch (err) { alert('Network Error'); }
+});
+
+topupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const amount = parseInt(document.getElementById('topup-amount').value);
+    const body = { uid: tappedUid.innerText, amount };
+
+    try {
+        const res = await authenticatedFetch('/topup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (res.ok) {
+            alert('Top-up successful');
+            animateBalance(parseInt(tappedBalance.innerText), data.newBalance);
+            document.getElementById('topup-amount').value = '';
+        } else { alert(data.error); }
+    } catch (err) { alert('Network Error'); }
+});
 
 // -- WebSocket Logic --
 function connectWebSocket() {
     ws = new WebSocket(`${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`);
 
     ws.onopen = () => {
-        console.log('Connected to WebSocket server');
-        wsIndicator.classList.replace('bg-semantic-error', 'bg-semantic-success');
+        wsIndicator.classList.replace('bg-ios-red', 'bg-ios-green');
+        wsText.innerText = 'Connected';
         if (reconnectInterval) clearInterval(reconnectInterval);
     };
 
@@ -65,190 +240,54 @@ function connectWebSocket() {
         try {
             const data = JSON.parse(event.data);
             if (data.event === 'BALANCE_UPDATE') {
-                const { uid, newBalance, previousBalance, transactionType, amount } = data.payload;
-
-                // Animate balance change if this is the currently "tapped" card
-                if (uid === tappedUid.innerText || tappedUid.innerText === 'Waiting for card...') {
-                    tappedUid.innerText = uid;
-                    animateBalance(parseInt(tappedBalance.innerText), newBalance);
-                }
-
-                // Auto-fill UID inputs
-                topupUid.value = uid;
-                payUid.value = uid;
+                const { uid, newBalance } = data.payload;
+                tappedUid.innerText = uid;
+                document.getElementById('topup-uid').value = uid;
+                animateBalance(parseInt(tappedBalance.innerText), newBalance);
             }
-        } catch (err) {
-            console.error('Error parsing WS message:', err);
-        }
+        } catch (err) { console.error('WS parse err', err); }
     };
 
     ws.onclose = () => {
-        console.log('WebSocket disconnected. Attempting to reconnect...');
-        wsIndicator.classList.replace('bg-semantic-success', 'bg-semantic-error');
+        wsIndicator.classList.replace('bg-ios-green', 'bg-ios-red');
+        wsText.innerText = 'Disconnected';
         reconnectInterval = setTimeout(connectWebSocket, 3000);
-    };
-
-    ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
-        ws.close();
     };
 }
 
-// Balance number animation function
+// -- Receipt & Animations --
+function showReceipt(receipt) {
+    document.getElementById('receipt-id').innerText = `TXN: ${receipt.transactionId}`;
+    document.getElementById('receipt-uid').innerText = receipt.uid;
+    document.getElementById('receipt-product').innerText = receipt.productName;
+    document.getElementById('receipt-qty').innerText = receipt.quantity;
+    document.getElementById('receipt-total').innerText = receipt.totalCost;
+    document.getElementById('receipt-balance').innerText = `${receipt.balanceAfter} CR`;
+
+    receiptOverlay.classList.remove('opacity-0', 'pointer-events-none');
+    receiptModal.classList.remove('scale-90');
+    receiptModal.classList.add('scale-100');
+}
+
+closeReceipt.addEventListener('click', () => {
+    receiptOverlay.classList.add('opacity-0', 'pointer-events-none');
+    receiptModal.classList.add('scale-90');
+    receiptModal.classList.remove('scale-100');
+});
+
 function animateBalance(start, end) {
-    if (start === end) {
-        tappedBalance.innerText = end;
-        return;
-    }
-    const duration = 500;
+    const duration = 1000;
     const startTime = performance.now();
-
-    function update(currentTime) {
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-
-        // Easing function: easeOutQuart
-        const easeProgress = 1 - Math.pow(1 - progress, 4);
-
-        const currentVal = Math.floor(start + (end - start) * easeProgress);
-        tappedBalance.innerText = currentVal;
-
-        if (progress < 1) {
-            requestAnimationFrame(update);
-        } else {
-            tappedBalance.innerText = end;
-        }
+    function update(now) {
+        const progress = Math.min((now - startTime) / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 5); // EaseOutQuint
+        const current = Math.floor(start + (end - start) * ease);
+        tappedBalance.innerText = current;
+        if (progress < 1) requestAnimationFrame(update);
     }
     requestAnimationFrame(update);
 }
 
-
-// -- Fetch Products --
-async function loadProducts() {
-    try {
-        const res = await fetch(`${API_BASE}/products`);
-        if (!res.ok) throw new Error('Failed to fetch products');
-        products = await res.json();
-
-        payProduct.innerHTML = '<option value="" disabled selected>Select a product...</option>';
-        products.forEach(p => {
-            payProduct.innerHTML += `<option value="${p.id}">${p.name} - ${p.price} credits</option>`;
-        });
-    } catch (err) {
-        console.error(err);
-        payProduct.innerHTML = '<option value="">Error loading products</option>';
-    }
-}
-
-// Calculate total cost dynamically
-function updateTotal() {
-    const productId = parseInt(payProduct.value);
-    const qty = parseInt(payQuantity.value) || 0;
-
-    if (isNaN(productId)) {
-        payTotal.innerText = '0';
-        return;
-    }
-
-    const product = products.find(p => p.id === productId);
-    if (product) {
-        payTotal.innerText = (product.price * qty).toString();
-    }
-}
-
-payProduct.addEventListener('change', updateTotal);
-payQuantity.addEventListener('input', updateTotal);
-
-// -- Submit Handlers --
-function showMessage(element, type, message) {
-    element.className = `mt-4 p-4 rounded-xl flex items-center mb-0 text-[14pt] animate-spring ${type === 'success' ? 'bg-[#ECFDF5] text-semantic-success border border-semantic-success/20' :
-        'bg-[#FEF2F2] text-semantic-error border border-semantic-error/20'
-        }`;
-
-    const icon = type === 'success'
-        ? `<svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`
-        : `<svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
-
-    element.innerHTML = `${icon} <span>${message}</span>`;
-    element.classList.remove('hidden');
-
-    setTimeout(() => { element.classList.add('hidden'); }, 5000);
-}
-
-formTopup.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = formTopup.querySelector('button');
-    btn.disabled = true;
-    btn.innerHTML = 'Processing...';
-    btn.classList.add('opacity-70');
-
-    try {
-        const body = {
-            uid: topupUid.value.trim(),
-            amount: parseInt(topupAmount.value)
-        };
-        const res = await fetch(`${API_BASE}/topup`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-        const data = await res.json();
-
-        if (res.ok) {
-            showMessage(topupResult, 'success', `Funded successfully! New balance: ${data.newBalance}`);
-            topupAmount.value = '';
-        } else {
-            showMessage(topupResult, 'error', `Failed: ${data.error || 'Unknown error'}`);
-        }
-    } catch (error) {
-        showMessage(topupResult, 'error', `Network error: ${error.message}`);
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = 'Confirm Top-Up';
-        btn.classList.remove('opacity-70');
-    }
-});
-
-formPayment.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = formPayment.querySelector('button');
-    btn.disabled = true;
-    btn.innerHTML = 'Processing...';
-    btn.classList.add('opacity-70');
-
-    try {
-        const body = {
-            uid: payUid.value.trim(),
-            productId: parseInt(payProduct.value),
-            quantity: parseInt(payQuantity.value)
-        };
-        if (isNaN(body.productId)) {
-            throw new Error("Please select a product");
-        }
-
-        const res = await fetch(`${API_BASE}/pay`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-        const data = await res.json();
-
-        if (res.ok) {
-            showMessage(payResult, 'success', `Payment Approved. New balance: ${data.newBalance}`);
-            payQuantity.value = '1';
-            updateTotal();
-        } else {
-            showMessage(payResult, 'error', `Declined: ${data.error || 'Unknown error'}`);
-        }
-    } catch (error) {
-        showMessage(payResult, 'error', `Error: ${error.message}`);
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = 'Charge Card';
-        btn.classList.remove('opacity-70');
-    }
-});
-
-// -- Initialize --
-connectWebSocket();
-loadProducts();
+// Init
+updateAuthUI();
+if (authToken) initDashboard();

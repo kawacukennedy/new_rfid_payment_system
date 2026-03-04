@@ -1,0 +1,33 @@
+#!/usr/bin/expect -f
+set timeout 300
+set password "kent...."
+set ip "157.173.101.159"
+set user "user246"
+
+spawn scp -o StrictHostKeyChecking=no deploy.sh $user@$ip:~/deploy.sh
+expect {
+    "password:" {
+        send "$password\r"
+        exp_continue
+    }
+    eof
+}
+
+spawn ssh -o StrictHostKeyChecking=no -tt $user@$ip
+expect {
+    "password:" {
+        send "$password\r"
+        exp_continue
+    }
+    "user246@" {
+        send "chmod +x ~/deploy.sh && ~/deploy.sh\r"
+        expect "Deployment finished successfully!"
+        send "exit\r"
+        expect eof
+    }
+    timeout {
+        puts "TIMEOUT"
+        exit 1
+    }
+    eof
+}

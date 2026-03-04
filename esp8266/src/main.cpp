@@ -15,12 +15,18 @@ const char* TOPIC_BALANCE = "rfid/kawacukennedy/card/balance";
 const char* TOPIC_TOPUP = "rfid/kawacukennedy/card/topup";
 const char* TOPIC_PAY = "rfid/kawacukennedy/card/pay";
 
-#define RST_PIN         5          // Configurable, see typical pin layout
-#define SS_PIN          4          // Configurable, see typical pin layout
-
-MFRC522 mfrc522(SS_PIN, RST_PIN);  // Create MFRC522 instance
+MFRC522* mfrc522 = nullptr;
 WiFiClient espClient;
 PubSubClient client(espClient);
+
+// Auto-detection pin pairs (SS, RST)
+struct PinPair { int ss; int rst; };
+PinPair scanPairs[] = {
+    {4, 5},   // D2, D1 (Common)
+    {15, 0},  // D8, D3
+    {2, 16},  // D4, D0
+    {15, 2}   // D8, D4
+};
 
 String currentUid = "";
 long localBalance = 0;
@@ -43,6 +49,26 @@ void setup_wifi() {
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
+}
+
+bool tryInitRFID(int ss, int rst) {
+    if (mfrc522) delete mfrc522;
+    mfrc522 = new MFRC522(ss, rst);
+    mfrc522->PCD_Init();
+    delay(50);
+    byte v = mfrc522->PCD_ReadRegister(mfrc522->VersionReg);
+    if (v == 0x00 || v == 0xFF) return false; 
+    Serial.printf("RFID Module found at SS:%d RST:%d (Version: 0x%02X)\n", ss, rst, v);
+    return true;
+}
+
+void scanAndInitRFID() {
+    Serial.println("Scanning for RFID module...");
+    for (auto pair : scanPairs) {
+        if (tryInitRFID(pair.ss, pair.rst)) return;
+    }
+    Serial.println("Warning: RFID module not detected. Falling back to default.");
+    tryInitRFID(4, 5);
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -79,7 +105,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
           Serial.println("Top-Up applied. Emitted to BALANCE topic.");
       }
   } 
-  else if (String(topic) == TOPIC_PAY) {
+  if (String(topic) == TOPIC_PAY) {
       int uidStart = messageTemp.indexOf("\"uid\":\"") + 7;
       int uidEnd = messageTemp.indexOf("\"", uidStart);
       String uid = messageTemp.substring(uidStart, uidEnd);
@@ -92,13 +118,20 @@ void callback(char* topic, byte* payload, unsigned int length) {
           localBalance -= amount;
           if (localBalance < 0) localBalance = 0;
           
-          // Store in EEPROM 
           EEPROM.put(0, localBalance);
           EEPROM.commit();
           
+          // Print Receipt to Serial
+          Serial.println("\n=========================");
+          Serial.println("     DIGITAL RECEIPT    ");
+          Serial.println("=========================");
+          Serial.printf(" CARD:   %s\n", uid.c_str());
+          Serial.printf(" PAID:   %ld CR\n", amount);
+          Serial.printf(" BAL:    %ld CR\n", localBalance);
+          Serial.println("=========================\n");
+
            String response = "{\"uid\":\"" + uid + "\",\"balance\":" + String(localBalance) + ",\"lastAmount\":" + String(amount) + ",\"lastType\":\"PAY\"}";
           client.publish(TOPIC_BALANCE, response.c_str());
-          Serial.println("Payment applied. Emitted to BALANCE topic.");
       }
   }
 }
@@ -106,7 +139,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
 void reconnect() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
-    // Create a random client ID
     String clientId = "ESP8266Client-";
     clientId += String(random(0xffff), HEX);
     
@@ -117,7 +149,6 @@ void reconnect() {
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
       delay(5000);
     }
   }
@@ -125,58 +156,40 @@ void reconnect() {
 
 void setup() {
   Serial.begin(115200);
-  EEPROM.begin(512); // Initialize EEPROM
+  EEPROM.begin(512); 
   
-  // Read basic balance for last card for demo purposes
   EEPROM.get(0, localBalance);
-  if (localBalance < 0 || localBalance > 1000000) {
-      localBalance = 0; // initialize if garbage
-  }
-  
+  if (localBalance < 0 || localBalance > 1000000) localBalance = 0;
+
+  SPI.begin();
+  scanAndInitRFID();
   setup_wifi();
+  
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
-  
-  SPI.begin();			// Init SPI bus
-  mfrc522.PCD_Init();		// Init MFRC522
-  delay(4);				// Optional delay. Some board do need more time after init to be ready, see Readme
-  Serial.println("Ready to scan RFID cards...");
 }
 
 void loop() {
-  if (!client.connected()) {
-    reconnect();
-  }
+  if (!client.connected()) reconnect();
   client.loop();
 
-  // Look for new cards
-  if ( ! mfrc522.PICC_IsNewCardPresent()) {
-    return;
-  }
-  // Select one of the cards
-  if ( ! mfrc522.PICC_ReadCardSerial()) {
-    return;
-  }
+  if (!mfrc522 || !mfrc522->PICC_IsNewCardPresent()) return;
+  if (!mfrc522->PICC_ReadCardSerial()) return;
   
   String uid = "";
-  for (byte i = 0; i < mfrc522.uid.size; i++) {
-        uid += String(mfrc522.uid.uidByte[i], HEX);
+  for (byte i = 0; i < mfrc522->uid.size; i++) {
+        uid += String(mfrc522->uid.uidByte[i], HEX);
   }
   uid.toUpperCase();
   
   if (uid != currentUid) {
       currentUid = uid;
-      // You'd ideally fetch balance from Server, but if we trust EEPROM 
-      // for this mocked 1-card local storage system context:
   }
   
-  // Publish card tap status
   String statusMsg = "{\"uid\":\"" + currentUid + "\",\"balance\":" + String(localBalance) + "}";
   client.publish(TOPIC_STATUS, statusMsg.c_str());
-  Serial.println("Card Tapped. Status Emitted: " + statusMsg);
+  Serial.println("Card Tapped: " + currentUid);
   
-  mfrc522.PICC_HaltA();
-  
-  // Small debounce
+  mfrc522->PICC_HaltA();
   delay(1000);
 }

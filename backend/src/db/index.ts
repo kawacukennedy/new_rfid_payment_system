@@ -38,12 +38,32 @@ export interface Transaction {
     created_at: string;
 }
 
+export interface User {
+    id: number;
+    username: string;
+    password_hash: string;
+    role: string;
+    created_at: string;
+}
+
+export interface Receipt {
+    id: number;
+    transaction_id: number;
+    receipt_data: string; // JSON string
+    created_at: string;
+}
+
 // Queries
-const queries = {
-    getCard: db.prepare('SELECT * FROM cards WHERE uid = ?'),
+getCard: db.prepare('SELECT * FROM cards WHERE uid = ?'),
     createCard: db.prepare('INSERT INTO cards (uid, balance) VALUES (?, ?) RETURNING *'),
-    getProducts: db.prepare('SELECT * FROM products'),
-    getProductById: db.prepare('SELECT * FROM products WHERE id = ?'),
+        getProducts: db.prepare('SELECT * FROM products'),
+            getProductById: db.prepare('SELECT * FROM products WHERE id = ?'),
+                // Auth
+                getUserByUsername: db.prepare('SELECT * FROM users WHERE username = ?'),
+                    createUser: db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?) RETURNING *'),
+                        // Receipts
+                        getReceiptByTx: db.prepare('SELECT * FROM receipts WHERE transaction_id = ?'),
+                            createReceipt: db.prepare('INSERT INTO receipts (transaction_id, receipt_data) VALUES (?, ?) RETURNING *'),
 };
 
 export const getCard = (uid: string): Card | undefined => {
@@ -114,4 +134,22 @@ export const processPayment = db.transaction((uid: string, productId: number, qu
 
     return { newBalance, transactionId: info.lastInsertRowid };
 });
+
+// Auth Helpers
+export const findUserByUsername = (username: string): User | undefined => {
+    return queries.getUserByUsername.get(username) as User | undefined;
+};
+
+export const createUser = (username: string, passwordHash: string, role: string = 'staff'): User => {
+    return queries.createUser.get(username, passwordHash, role) as User;
+};
+
+// Receipt Helpers
+export const saveReceipt = (transactionId: number | bigint, receiptData: object): Receipt => {
+    return queries.createReceipt.get(transactionId, JSON.stringify(receiptData)) as Receipt;
+};
+
+export const getReceiptByTransactionId = (transactionId: number | bigint): Receipt | undefined => {
+    return queries.getReceiptByTx.get(transactionId) as Receipt | undefined;
+};
 

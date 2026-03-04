@@ -31,7 +31,9 @@
     "mqtt": "^5.3.5",
     "node-cron": "^4.2.1",
     "ws": "^8.16.0",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
@@ -41,6 +43,8 @@
     "@types/node-cron": "^3.0.11",
     "@types/supertest": "^7.2.0",
     "@types/ws": "^8.5.10",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.8",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "eslint": "^8.57.0",
