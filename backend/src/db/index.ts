@@ -53,17 +53,17 @@ export interface Receipt {
     created_at: string;
 }
 
-// Queries
-getCard: db.prepare('SELECT * FROM cards WHERE uid = ?'),
+const queries = {
+    getCard: db.prepare('SELECT * FROM cards WHERE uid = ?'),
     createCard: db.prepare('INSERT INTO cards (uid, balance) VALUES (?, ?) RETURNING *'),
-        getProducts: db.prepare('SELECT * FROM products'),
-            getProductById: db.prepare('SELECT * FROM products WHERE id = ?'),
-                // Auth
-                getUserByUsername: db.prepare('SELECT * FROM users WHERE username = ?'),
-                    createUser: db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?) RETURNING *'),
-                        // Receipts
-                        getReceiptByTx: db.prepare('SELECT * FROM receipts WHERE transaction_id = ?'),
-                            createReceipt: db.prepare('INSERT INTO receipts (transaction_id, receipt_data) VALUES (?, ?) RETURNING *'),
+    getProducts: db.prepare('SELECT * FROM products'),
+    getProductById: db.prepare('SELECT * FROM products WHERE id = ?'),
+    // Auth
+    getUserByUsername: db.prepare('SELECT * FROM users WHERE username = ?'),
+    createUser: db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?) RETURNING *'),
+    // Receipts
+    getReceiptByTx: db.prepare('SELECT * FROM receipts WHERE transaction_id = ?'),
+    createReceipt: db.prepare('INSERT INTO receipts (transaction_id, receipt_data) VALUES (?, ?) RETURNING *'),
 };
 
 export const getCard = (uid: string): Card | undefined => {
