@@ -1,87 +1,96 @@
-# RFID Wallet Transaction System
+# RFID Wallet Transaction System: iOS 26 Edition
 
-A production-grade RFID-based wallet system enabling top-up and payment operations with real-time dashboard updates.
+A futuristic, production-grade RFID-based wallet system. This project overhauls traditional transaction tracking with a bleeding-edge "iOS 26" aesthetic, secure authentication, and persistent digital receipts.
 
-## Architecture Overview
+🚀 **Live Dashboard:** [http://157.173.101.159:8246](http://157.173.101.159:8246)
+
+---
+
+## ✨ Key Features
+
+### 🎨 Futuristic iOS 26 UI
+- **Glassmorphic Design:** Deep blurring, high-saturation accents, and floating depth layers.
+- **Spring Animations:** Micro-interactions powered by CSS cubic-bezier springs for a premium feel.
+- **Unified Portal:** Seamless transitions between authentication and the control center.
+
+### 🔐 Secure Authentication & Authorization
+- **JWT-Powered:** Secure session management via JSON Web Tokens.
+- **Encryption:** Passwords hashed with `bcryptjs`.
+- **Role Control:** Built-in support for `admin` and `staff` permissions.
+
+### 🧾 Persistent Digital Receipts
+- **Activity Feed:** A real-time transaction history on the dashboard.
+- **View Past Receipts:** Every transaction generates a persistent digital receipt that can be retrieved and viewed anytime.
+
+### 🛰️ Intelligent Firmware (ESP8266)
+- **Zero-Config Hardware:** Auto-detects RFID reader pins (SS/RST) by scanning common SPI pairs.
+- **Serial Receipts:** Digital receipts are formatted and printed to the serial console on every tap.
+
+---
+
+## 🛠️ Architecture Overview
 
 The system consists of three main components:
-1. **Frontend (Dashboard)**: Built with vanilla JS and Tailwind CSS, following modern iOS 26 design guidelines. Connects to backend via HTTP and WebSocket.
-2. **Backend**: Node.js/Express service. Uses SQLite (with WAL mode) for data persistence. Provides HTTP endpoints for transactions and a WebSocket server for real-time dashboard updates. Acts as an MQTT client to bridge hardware and software.
-3. **Hardware (ESP8266)**: Edge controller reading RFID cards. Communicates *exclusively* via MQTT.
+1. **Frontend**: Vanilla JS + Tailwind CSS. Real-time updates via WebSockets.
+2. **Backend**: Node.js v22 (LTS) / Express. Uses SQLite (WAL mode) for mission-critical persistence.
+3. **Hardware**: ESP8266 communicating via MQTT (broker.benax.rw).
 
-## Setup Instructions
+---
+
+## 🚀 Setup Instructions
 
 ### Prerequisites
-- Node.js (v18+)
-- Python (for `better-sqlite3` build if required)
-- MQTT Broker (Default: broker.benax.rw)
+- **Node.js**: v22.14.0 or higher
+- **MQTT Broker**: `broker.benax.rw` (Port 1883)
+- **Hardware**: ESP8266 + MFRC522 RFID Reader
 
 ### Installation
-1. Clone the repository.
-2. Go to `backend` directory and install dependencies:
-   ```bash
-   cd backend
-   npm install
-   ```
-3. (Optional) Create a `.env` file via `cp .env.example .env` if custom broker credentials are required.
+1.  **Clone & Install Backend:**
+    ```bash
+    cd backend
+    npm install
+    npm run build
+    ```
+2.  **Environment Variables:**
+    Create a `.env` in `backend/`:
+    ```env
+    JWT_SECRET=your_secure_secret
+    MQTT_BROKER=broker.benax.rw
+    PORT=8246
+    ```
 
-### Running the System
-**Backend:**
-```bash
-npm run dev
-```
-Start the backend. It will listen on `http://localhost:3000`.
+### Running Locally
+- **Backend:** `npm run dev` (Starts at `http://localhost:8246`)
+- **Frontend:** Serve `frontend/index.html` via any local server (or open directly).
+- **Mock ESP:** `node mock-esp8266.js` to simulate card taps.
 
-**Frontend:**
-Open `frontend/index.html` in a web browser. Ensure the backend is running for WebSockets and APIs.
+---
 
-**Mock ESP8266 (Testing):**
-```bash
-node mock-esp.js
-```
-Use this script to simulate card taps directly from your terminal.
+## 🔌 API Endpoints (Protected)
 
-## API Endpoints
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/auth/login` | Login and get JWT |
+| `GET` | `/api/transactions` | Fetch latest 20 activity items |
+| `POST` | `/api/topup` | Add credits to a card UID |
+| `POST` | `/api/pay` | Purchase a product and generate receipt |
+| `GET` | `/api/receipt/:id` | Retrieve a specific persistent receipt |
 
-### `POST /topup`
-Top-up an account.
-- **Body**: `{ "uid": "CARD_UID", "amount": 1000 }`
-- **Responses**: 
-    - `202 Accepted`: `{ status: "processing", newBalance: 1500, transactionId: "1" }`
-    - `400 Bad Request`: Invalid input
+---
 
-### `POST /pay`
-Process a payment for a given product.
-- **Body**: `{ "uid": "CARD_UID", "productId": 1, "quantity": 1 }`
-- **Responses**:
-    - `202 Accepted`: Payment successful.
-    - `400 Bad Request`: Invalid input
-    - `402 Payment Required`: Insufficient balance
-    - `404 Not Found`: Card or product not found
+## 🛰️ MQTT Protocol
+All topics are under `rfid/kawacukennedy/`:
+- `/card/status`: (Device → Server) Card tap event.
+- `/card/pay`: (Server → Device) Command to deduct/blink.
+- `/card/topup`: (Server → Device) Command to update balance.
 
-### `GET /products`
-Retrieve a list of available products.
-- **Response**: `200 OK` Array of products `[ { id: 1, name: "Coffee", price: 250 } ]`
+---
 
-## MQTT Topics
+## 📦 Deployment
+The system is deployed on a Linux VPS using **PM2** and **NVM**.
+- **Process Management:** `pm2 restart rfid-backend`
+- **Node Stack:** v22.22.0 Node / v10.9.4 NPM
 
-All topics are isolated under `rfid/kawacukennedy`.
-- `rfid/kawacukennedy/card/status` (ESP8266 → Backend): Sent when a card is tapped.
-  - Payload: `{ "uid": "...", "balance": 100 }`
-- `rfid/kawacukennedy/card/balance` (ESP8266 → Backend): Sent after ESP8266 applies a command locally.
-- `rfid/kawacukennedy/card/topup` (Backend → ESP8266): Sent when top-up succeeds in DB.
-  - Payload: `{ "uid": "...", "amount": 1000 }`
-- `rfid/kawacukennedy/card/pay` (Backend → ESP8266): Sent when payment succeeds in DB.
-  - Payload: `{ "uid": "...", "amount": 250 }`
-
-## Database
-Uses `better-sqlite3`. Contains 3 main tables:
-- `cards`: Stores UID and balance.
-- `products`: Catalog.
-- `transactions`: Immutable transaction ledger for TOPUP and PAYMENT.
-
-**Pruning:** A weekly background job deletes transaction logs older than 1 year to save space.
-
-## Testing & Tooling
-- **Lint/Format:** `npm run lint`, `npm run format`
-- **Tests:** `npm run test` (executes Jest for DB unit tests and HTTP API integration tests).
+---
+**Maintained by:** kawacukennedy Team
+**License:** MIT
