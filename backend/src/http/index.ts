@@ -78,6 +78,15 @@ router.post('/auth/login', (req, res) => {
 });
 
 // --- Protected Routes ---
+router.get('/transactions', authenticateToken, (req, res) => {
+    try {
+        const transactions = getRecentTransactions(20);
+        res.status(200).json(transactions);
+    } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+    }
+});
+
 router.post('/topup', authenticateToken, (req, res) => {
     try {
         const { uid, amount } = TopUpSchema.parse(req.body);
