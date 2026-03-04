@@ -14,7 +14,7 @@ The system consists of three main components:
 ### Prerequisites
 - Node.js (v18+)
 - Python (for `better-sqlite3` build if required)
-- MQTT Broker (Default: broker.hivemq.com)
+- MQTT Broker (Default: broker.benax.rw)
 
 ### Installation
 1. Clone the repository.

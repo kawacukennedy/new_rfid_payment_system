@@ -643,7 +643,7 @@
         "mqtt_client": {
             "technology": "mqtt package",
             "components": [
-                "Connection to broker (broker.hivemq.com:1883) with TLS",
+                "Connection to broker (broker.benax.rw:1883) with TLS",
                 "Subscriptions to rfid/kawacukennedy/card/status and rfid/kawacukennedy/card/balance",
                 "Publishes to rfid/kawacukennedy/card/topup and rfid/kawacukennedy/card/pay",
                 "Reconnection logic with exponential backoff"

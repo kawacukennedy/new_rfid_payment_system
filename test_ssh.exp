@@ -1,0 +1,25 @@
+#!/usr/bin/expect -f
+set password "kent...."
+set ip "157.173.101.159"
+set user "user246"
+
+spawn ssh -o StrictHostKeyChecking=no -tt $user@$ip
+expect {
+    "password:" {
+        send "$password\r"
+        exp_continue
+    }
+    "current password:" {
+        puts "PASSWORD_CHANGE_REQUIRED"
+        exit 1
+    }
+    "user246@" {
+        puts "LOGGED_IN"
+        send "exit\r"
+        expect eof
+    }
+    timeout {
+        puts "TIMEOUT"
+        exit 1
+    }
+}

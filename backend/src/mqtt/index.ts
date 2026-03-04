@@ -2,7 +2,7 @@ import mqtt from 'mqtt';
 import { getCard, ensureCardExists } from '../db';
 import { broadcastBalanceUpdate } from '../websocket';
 
-const BROKER_URL = process.env.MQTT_URL || 'mqtt://broker.hivemq.com:1883';
+const BROKER_URL = process.env.MQTT_URL || 'mqtt://broker.benax.rw:1883';
 const USE_TLS = process.env.MQTT_USE_TLS === 'true';
 
 let reconnectAttempts = 0;
@@ -40,7 +40,7 @@ client.on('connect', () => {
 client.on('reconnect', () => {
     const delay = getReconnectDelay(reconnectAttempts);
     reconnectAttempts++;
-    console.log(`MQTT Reconnecting in ${Math.round(delay/1000)}s (attempt ${reconnectAttempts})`);
+    console.log(`MQTT Reconnecting in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts})`);
 });
 
 client.on('offline', () => {

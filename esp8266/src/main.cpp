@@ -8,7 +8,7 @@
 // == Config ==
 const char* ssid = "YOUR_SSID";
 const char* password = "YOUR_PASSWORD";
-const char* mqtt_server = "broker.hivemq.com";
+const char* mqtt_server = "broker.benax.rw";
 
 const char* TOPIC_STATUS = "rfid/kawacukennedy/card/status";
 const char* TOPIC_BALANCE = "rfid/kawacukennedy/card/balance";

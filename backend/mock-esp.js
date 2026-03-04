@@ -1,6 +1,6 @@
 const mqtt = require('mqtt');
 
-const BROKER_URL = 'mqtt://broker.hivemq.com:1883';
+const BROKER_URL = 'mqtt://broker.benax.rw:1883';
 const client = mqtt.connect(BROKER_URL, { clientId: 'MockESP8266_' + Math.random().toString(16).substr(2, 8) });
 
 const TOPIC_PREFIX = 'rfid/kawacukennedy';
