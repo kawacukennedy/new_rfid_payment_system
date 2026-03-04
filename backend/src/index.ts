@@ -1,14 +1,14 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
-import dotenv from 'dotenv';
 import apiRoutes from './http';
 import { initWebSocket } from './websocket';
 import { initPruningJob } from './jobs/prune';
 import './mqtt';
 import { config } from './config';
-
-dotenv.config();
 
 const app = express();
 
