@@ -10,9 +10,9 @@ export const initWebSocket = (server: Server) => {
     wss.on('connection', (ws) => {
         console.log('Client connected to WebSocket');
 
-        ws.isAlive = true;
+        (ws as any).isAlive = true;
         ws.on('pong', () => {
-            ws.isAlive = true;
+            (ws as any).isAlive = true;
         });
 
         ws.on('close', () => {
