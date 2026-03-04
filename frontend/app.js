@@ -29,6 +29,8 @@ const tappedUid = document.getElementById('tapped-uid');
 const tappedBalance = document.getElementById('tapped-balance');
 const wsIndicator = document.getElementById('ws-indicator');
 const wsText = document.getElementById('ws-text');
+const activityList = document.getElementById('activity-list');
+const refreshActivity = document.getElementById('refresh-activity');
 
 // -- UI Elements: Receipt --
 const receiptOverlay = document.getElementById('receipt-overlay');
@@ -107,7 +109,10 @@ logoutBtn.addEventListener('click', () => {
 function initDashboard() {
     connectWebSocket();
     loadProducts();
+    loadTransactions();
 }
+
+refreshActivity.addEventListener('click', loadTransactions);
 
 tabPayment.addEventListener('click', () => switchTab('payment'));
 tabTopup.addEventListener('click', () => switchTab('topup'));
@@ -141,6 +146,66 @@ function switchTab(tab) {
     panelTopup.classList.toggle('scale-95', isPayment);
     panelTopup.classList.toggle('pointer-events-none', isPayment);
 }
+
+async function loadTransactions() {
+    try {
+        const res = await authenticatedFetch('/transactions');
+        const txs = await res.json();
+
+        if (txs.length === 0) {
+            activityList.innerHTML = '<div class="glass p-6 rounded-[2.5rem] text-center text-slate-400 italic text-sm">No recent transactions found.</div>';
+            return;
+        }
+
+        activityList.innerHTML = '';
+        txs.forEach(tx => {
+            const item = document.createElement('div');
+            item.className = 'glass p-4 px-6 rounded-[2rem] flex items-center justify-between animate-spring-in shadow-ios-card';
+
+            const isPayment = tx.type === 'PAYMENT';
+            const iconColor = isPayment ? 'ios-red' : 'ios-green';
+            const typeText = isPayment ? 'Payment' : 'Top-Up';
+            const detailText = isPayment ? (tx.product_name || 'Product Purchase') : 'Credits Added';
+
+            item.innerHTML = `
+                <div class="flex items-center space-x-4">
+                    <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-${iconColor}">
+                        ${isPayment ?
+                    '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>' :
+                    '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>'
+                }
+                    </div>
+                    <div>
+                        <p class="font-bold text-slate-800">${typeText}</p>
+                        <p class="text-xs text-slate-400 font-medium">${detailText} • ${new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="font-black text-lg ${isPayment ? 'text-slate-900' : 'text-ios-green'}">
+                        ${isPayment ? '-' : '+'}${tx.amount}
+                    </span>
+                    ${tx.has_receipt ? `
+                        <button onclick="fetchAndShowReceipt(${tx.id})" class="p-2 bg-ios-blue/10 text-ios-blue rounded-xl ios-button">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                        </button>
+                    ` : ''}
+                </div>
+            `;
+            activityList.appendChild(item);
+        });
+    } catch (err) { console.error('Load txs err:', err); }
+}
+
+async function fetchAndShowReceipt(txId) {
+    try {
+        const res = await authenticatedFetch(`/receipt/${txId}`);
+        const receipt = await res.json();
+        if (res.ok) showReceipt(receipt);
+        else alert(receipt.error);
+    } catch (err) { alert('Failed to fetch receipt'); }
+}
+
+window.fetchAndShowReceipt = fetchAndShowReceipt; // Expose to global for inline onclick
 
 // -- API Helpers --
 async function authenticatedFetch(endpoint, options = {}) {
@@ -200,6 +265,7 @@ payForm.addEventListener('submit', async (e) => {
         if (res.ok) {
             showReceipt(data.receipt);
             animateBalance(parseInt(tappedBalance.innerText), data.newBalance);
+            loadTransactions(); // Refresh history
         } else {
             alert(data.error);
         }
@@ -222,6 +288,7 @@ topupForm.addEventListener('submit', async (e) => {
             alert('Top-up successful');
             animateBalance(parseInt(tappedBalance.innerText), data.newBalance);
             document.getElementById('topup-amount').value = '';
+            loadTransactions(); // Refresh history
         } else { alert(data.error); }
     } catch (err) { alert('Network Error'); }
 });
@@ -244,6 +311,7 @@ function connectWebSocket() {
                 tappedUid.innerText = uid;
                 document.getElementById('topup-uid').value = uid;
                 animateBalance(parseInt(tappedBalance.innerText), newBalance);
+                loadTransactions(); // Refresh history
             }
         } catch (err) { console.error('WS parse err', err); }
     };

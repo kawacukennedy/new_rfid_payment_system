@@ -195,6 +195,28 @@
             </div>
         </section>
 
+        <!-- Recent Activity Section -->
+        <section class="mb-10 animate-spring-in" style="animation-delay: 0.1s;">
+            <div class="flex items-center justify-between mb-4 px-2">
+                <h3 class="text-xl font-bold tracking-tight text-slate-900">Recent Activity</h3>
+                <button id="refresh-activity"
+                    class="text-ios-blue text-sm font-semibold hover:opacity-70 transition-opacity flex items-center space-x-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                        </path>
+                    </svg>
+                    <span>Refresh</span>
+                </button>
+            </div>
+            <div id="activity-list" class="space-y-3">
+                <!-- Activity items will be injected here -->
+                <div class="glass p-6 rounded-[2.5rem] text-center text-slate-400 italic text-sm">
+                    No recent transactions found.
+                </div>
+            </div>
+        </section>
+
         <!-- Interaction Tabs -->
         <div
             class="flex justify-center mb-8 gap-2 p-1 bg-slate-200/30 rounded-3xl w-fit mx-auto backdrop-blur-md border border-slate-200/50">
