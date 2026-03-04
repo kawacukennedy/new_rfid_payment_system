@@ -57,7 +57,7 @@ router.post('/auth/register', (req, res) => {
         const user = createUser(username, passwordHash, role);
         res.status(201).json({ id: user.id, username: user.username, role: user.role });
     } catch (error) {
-        if (error instanceof z.ZodError) return res.status(400).json({ error: 'Invalid input', details: error.errors });
+        if (error instanceof z.ZodError) return res.status(400).json({ error: 'Invalid input', details: error.issues });
         res.status(500).json({ error: (error as Error).message });
     }
 });
@@ -72,7 +72,7 @@ router.post('/auth/login', (req, res) => {
         const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
         res.status(200).json({ token, user: { id: user.id, username: user.username, role: user.role } });
     } catch (error) {
-        if (error instanceof z.ZodError) return res.status(400).json({ error: 'Invalid input', details: error.errors });
+        if (error instanceof z.ZodError) return res.status(400).json({ error: 'Invalid input', details: error.issues });
         res.status(500).json({ error: (error as Error).message });
     }
 });
