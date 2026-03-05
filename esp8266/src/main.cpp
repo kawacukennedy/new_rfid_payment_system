@@ -6,8 +6,8 @@
 // JSON is parsed manually via String operations (no ArduinoJson needed)
 
 // == Config ==
-const char* ssid = "EdNet";
-const char* password = "Huawei@123";
+const char* ssid = "Benax-POP8A";
+const char* password = "$emi0pen";
 const char* mqtt_server = "broker.benax.rw";
 
 const char* TOPIC_STATUS = "rfid/kawacukennedy/card/status";

@@ -11,8 +11,11 @@ import { initPruningJob } from './jobs/prune';
 import './mqtt';
 import { config } from './config';
 
+import compression from 'compression';
+
 const app = express();
 
+app.use(compression());
 app.use(cors());
 app.use(express.json());
 

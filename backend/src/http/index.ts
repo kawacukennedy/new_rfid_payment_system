@@ -13,8 +13,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-123';
 const router = Router();
 
 const limiter = rateLimit({
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100000'), // 100k requests per window
     message: { error: 'Too many requests, please try again later.' },
     standardHeaders: true,
     legacyHeaders: false,

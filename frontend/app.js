@@ -226,7 +226,17 @@ async function authenticatedFetch(endpoint, options = {}) {
 async function loadProducts() {
     try {
         const res = await fetch(`${API_BASE}/products`);
+        if (!res.ok) {
+            console.warn('Failed to load products');
+            return;
+        }
         products = await res.json();
+
+        if (!Array.isArray(products)) {
+            console.warn('Products is not an array:', products);
+            return;
+        }
+
         const select = document.getElementById('pay-product');
         select.innerHTML = '<option value="" disabled selected>Choose a product</option>';
         products.forEach(p => {
