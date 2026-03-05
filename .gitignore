@@ -110,3 +110,4 @@ backend/data/
 # IDE files
 .vscode/
 .idea/
+.pio/
