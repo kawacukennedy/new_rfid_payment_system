@@ -64,6 +64,14 @@ The system consists of three main components:
 - **Frontend:** Serve `frontend/index.html` via any local server (or open directly).
 - **Mock ESP:** `node mock-esp8266.js` to simulate card taps.
 
+### Flashing Firmware (ESP8266)
+To upload the firmware to the physical ESP8266 hardware using PlatformIO, connect the device via USB and run:
+```bash
+cd esp8266
+pio run --target upload --upload-port /dev/cu.usbserial-0001
+```
+*(Note: Replace `/dev/cu.usbserial-0001` with your actual serial port. If `pio` is not in your PATH, use its absolute path, e.g., `~/.platformio/penv/bin/pio` or `/Users/n3on/Library/Python/3.9/bin/pio`).*
+
 ---
 
 ## 🔌 API Endpoints (Protected)
