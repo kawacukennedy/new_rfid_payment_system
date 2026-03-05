@@ -3,11 +3,11 @@
 #include <SPI.h>
 #include <MFRC522.h>
 #include <EEPROM.h>
-#include <ArduinoJson.h> // Ensure you have ArduinoJson added to platformio.ini if using it, or handle JSON manually
+// JSON is parsed manually via String operations (no ArduinoJson needed)
 
 // == Config ==
-const char* ssid = "YOUR_SSID";
-const char* password = "YOUR_PASSWORD";
+const char* ssid = "EdNet";
+const char* password = "Huawei@123";
 const char* mqtt_server = "broker.benax.rw";
 
 const char* TOPIC_STATUS = "rfid/kawacukennedy/card/status";

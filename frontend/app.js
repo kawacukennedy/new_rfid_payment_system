@@ -150,9 +150,15 @@ function switchTab(tab) {
 async function loadTransactions() {
     try {
         const res = await authenticatedFetch('/transactions');
+        if (!res.ok) {
+            // Silently skip if endpoint not available or unauthorized
+            if (res.status === 401) return;
+            activityList.innerHTML = '<div class="glass p-6 rounded-[2.5rem] text-center text-slate-400 italic text-sm">Activity feed unavailable.</div>';
+            return;
+        }
         const txs = await res.json();
 
-        if (txs.length === 0) {
+        if (!Array.isArray(txs) || txs.length === 0) {
             activityList.innerHTML = '<div class="glass p-6 rounded-[2.5rem] text-center text-slate-400 italic text-sm">No recent transactions found.</div>';
             return;
         }
@@ -193,7 +199,7 @@ async function loadTransactions() {
             `;
             activityList.appendChild(item);
         });
-    } catch (err) { console.error('Load txs err:', err); }
+    } catch (err) { /* Network error — silently ignore */ }
 }
 
 async function fetchAndShowReceipt(txId) {
